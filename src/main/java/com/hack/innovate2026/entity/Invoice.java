@@ -70,4 +70,8 @@ public class Invoice {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+
+    @ManyToOne
+    @JoinColumn(name = "uploaded_by")
+    private User uploadedBy;
 }
