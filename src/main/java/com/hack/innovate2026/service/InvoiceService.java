@@ -42,7 +42,7 @@ public class InvoiceService {
             Authentication authentication
     ) {
         if (invoiceRepository.existsByInvoiceId(request.invoiceId())) {
-            throw new IllegalArgumentException("Invoice ID already exists: " + request.invoiceId());
+            throw new com.hack.innovate2026.exception.ConflictException("Invoice ID already exists: " + request.invoiceId());
         }
 
         User uploader = userRepository.findByEmail(authentication.getName())
