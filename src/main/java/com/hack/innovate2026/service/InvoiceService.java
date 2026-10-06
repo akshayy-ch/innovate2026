@@ -31,7 +31,7 @@ public class InvoiceService {
     public InvoiceResponse getInvoiceById(Long id) {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Invoice not found with id: " + id)
+                        new com.hack.innovate2026.exception.ResourceNotFoundException("Invoice not found with id: " + id)
                 );
 
         return toResponse(invoice);
