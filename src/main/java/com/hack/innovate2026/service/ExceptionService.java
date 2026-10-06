@@ -9,6 +9,7 @@ import com.hack.innovate2026.entity.Review;
 import com.hack.innovate2026.entity.Invoice;
 import com.hack.innovate2026.entity.User;
 import com.hack.innovate2026.enums.Decision;
+import com.hack.innovate2026.enums.InvoiceStatus;
 import com.hack.innovate2026.enums.UserRole;
 import com.hack.innovate2026.repository.ExceptionRepository;
 import com.hack.innovate2026.repository.InvoiceRepository;
@@ -54,6 +55,9 @@ public class ExceptionService {
                 .matchedRecordId(request.matchedRecordId())
                 .decision(request.decision())
                 .build();
+
+        invoice.setStatus(statusForDecision(request.decision()));
+        invoiceRepository.save(invoice);
 
         ExceptionRecord savedException = exceptionRepository.save(exception);
         auditLogService.log(
@@ -123,6 +127,9 @@ public class ExceptionService {
 
         Review saved = reviewRepository.save(review);
 
+        exception.getInvoice().setStatus(InvoiceStatus.RESOLVED);
+        invoiceRepository.save(exception.getInvoice());
+
         auditLogService.log(
                 exception.getInvoice(),
                 reviewer,
@@ -140,6 +147,14 @@ public class ExceptionService {
                 saved.getComments(),
                 saved.getReviewedAt()
         );
+    }
+
+    private InvoiceStatus statusForDecision(Decision decision) {
+        return switch (decision) {
+            case AUTO_PASS -> InvoiceStatus.AUTO_PASS;
+            case HUMAN_REVIEW -> InvoiceStatus.HUMAN_REVIEW;
+            case HIGH_RISK, HOLD -> InvoiceStatus.HIGH_RISK;
+        };
     }
 
     private boolean canReview(UserRole role, Decision decision) {
