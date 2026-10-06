@@ -1,13 +1,17 @@
 package com.hack.innovate2026.service;
 
+import com.hack.innovate2026.dto.request.CreateExceptionRequest;
 import com.hack.innovate2026.dto.request.CreateReviewRequest;
+import com.hack.innovate2026.dto.response.ExceptionResponse;
 import com.hack.innovate2026.dto.response.ReviewResponse;
 import com.hack.innovate2026.entity.ExceptionRecord;
 import com.hack.innovate2026.entity.Review;
+import com.hack.innovate2026.entity.Invoice;
 import com.hack.innovate2026.entity.User;
 import com.hack.innovate2026.enums.Decision;
 import com.hack.innovate2026.enums.UserRole;
 import com.hack.innovate2026.repository.ExceptionRepository;
+import com.hack.innovate2026.repository.InvoiceRepository;
 import com.hack.innovate2026.repository.ReviewRepository;
 import com.hack.innovate2026.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,15 +27,56 @@ public class ExceptionService {
 
     private final ExceptionRepository exceptionRepository;
     private final ReviewRepository reviewRepository;
+    private final InvoiceRepository invoiceRepository;
     private final UserRepository userRepository;
 
-    public List<ExceptionRecord> getAllExceptions() {
-        return exceptionRepository.findAll();
+    public List<ExceptionResponse> getAllExceptions() {
+        return exceptionRepository.findAll().stream().map(this::toResponse).toList();
     }
 
-    public ExceptionRecord getExceptionById(Long id) {
+    public ExceptionResponse getExceptionById(Long id) {
+        return toResponse(getExceptionRecordById(id));
+    }
+
+    @Transactional
+    public ExceptionResponse createException(CreateExceptionRequest request) {
+        Invoice invoice = invoiceRepository.findById(request.invoiceId())
+                .orElseThrow(() -> new RuntimeException("Invoice not found with id: " + request.invoiceId()));
+
+        ExceptionRecord exception = ExceptionRecord.builder()
+                .invoice(invoice)
+                .exceptionType(request.exceptionType())
+                .severity(request.severity())
+                .confidence(request.confidence())
+                .riskScore(request.riskScore())
+                .reason(request.reason())
+                .matchedRecordId(request.matchedRecordId())
+                .decision(request.decision())
+                .build();
+
+        return toResponse(exceptionRepository.save(exception));
+    }
+
+    private ExceptionRecord getExceptionRecordById(Long id) {
         return exceptionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Exception not found with id: " + id));
+    }
+
+    private ExceptionResponse toResponse(ExceptionRecord exception) {
+        return new ExceptionResponse(
+                exception.getId(),
+                exception.getInvoice().getId(),
+                exception.getInvoice().getInvoiceId(),
+                exception.getExceptionType(),
+                exception.getSeverity(),
+                exception.getConfidence(),
+                exception.getRiskScore(),
+                exception.getReason(),
+                exception.getMatchedRecordId(),
+                exception.getDecision(),
+                exception.getCreatedAt(),
+                exception.getUpdatedAt()
+        );
     }
 
     @Transactional
@@ -40,7 +85,7 @@ public class ExceptionService {
             CreateReviewRequest request,
             Authentication authentication
     ) {
-        ExceptionRecord exception = getExceptionById(exceptionId);
+        ExceptionRecord exception = getExceptionRecordById(exceptionId);
 
         User reviewer = userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
