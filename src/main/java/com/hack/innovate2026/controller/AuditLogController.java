@@ -23,7 +23,7 @@ public class AuditLogController {
 
     @GetMapping("/invoice/{invoiceId}")
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
-    public List<AuditLog> getInvoiceLogs(@PathVariable Long invoiceId) {
+    public List<AuditLogResponse> getInvoiceLogs(@PathVariable Long invoiceId) {
         return auditLogService.getInvoiceLogs(invoiceId);
     }
 }
