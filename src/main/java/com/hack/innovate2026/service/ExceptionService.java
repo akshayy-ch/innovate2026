@@ -94,7 +94,9 @@ public class ExceptionService {
 
         if (exception.getInvoice().getUploadedBy() != null
                 && exception.getInvoice().getUploadedBy().getId().equals(reviewer.getId())) {
-            throw new IllegalStateException("Maker-checker violation: invoice uploader cannot review its exception");
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Maker-checker violation: invoice uploader cannot review its exception"
+            );
         }
 
         if (!canReview(role, exception.getDecision())) {
