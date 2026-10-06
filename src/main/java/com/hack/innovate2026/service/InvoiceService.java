@@ -19,6 +19,7 @@ public class InvoiceService {
 
     private final InvoiceRepository invoiceRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     public List<InvoiceResponse> getAllInvoices() {
         return invoiceRepository.findAll()
@@ -59,7 +60,9 @@ public class InvoiceService {
                 .uploadedBy(uploader)
                 .build();
 
-        return toResponse(invoiceRepository.save(invoice));
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+        auditLogService.log(savedInvoice, uploader, "INVOICE_CREATED", null, "status=PENDING");
+        return toResponse(savedInvoice);
     }
 
     private InvoiceResponse toResponse(Invoice invoice) {
