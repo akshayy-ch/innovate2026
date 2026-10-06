@@ -1,7 +1,7 @@
 package com.hack.innovate2026.controller;
 
-import com.hack.innovate2026.entity.AuditLog;
 import com.hack.innovate2026.service.AuditLogService;
+import com.hack.innovate2026.dto.response.AuditLogResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -17,7 +17,7 @@ public class AuditLogController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('MANAGER','ADMIN')")
-    public List<AuditLog> getAllLogs() {
+    public List<AuditLogResponse> getAllLogs() {
         return auditLogService.getAllLogs();
     }
 
