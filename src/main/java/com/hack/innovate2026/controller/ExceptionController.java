@@ -1,8 +1,9 @@
 package com.hack.innovate2026.controller;
 
+import com.hack.innovate2026.dto.request.CreateExceptionRequest;
 import com.hack.innovate2026.dto.request.CreateReviewRequest;
+import com.hack.innovate2026.dto.response.ExceptionResponse;
 import com.hack.innovate2026.dto.response.ReviewResponse;
-import com.hack.innovate2026.entity.ExceptionRecord;
 import com.hack.innovate2026.service.ExceptionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,13 +22,22 @@ public class ExceptionController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
-    public ResponseEntity<List<ExceptionRecord>> getAllExceptions() {
+    public ResponseEntity<List<ExceptionResponse>> getAllExceptions() {
         return ResponseEntity.ok(exceptionService.getAllExceptions());
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
+    public ResponseEntity<ExceptionResponse> createException(
+            @Valid @RequestBody CreateExceptionRequest request
+    ) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(exceptionService.createException(request));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
-    public ResponseEntity<ExceptionRecord> getExceptionById(@PathVariable Long id) {
+    public ResponseEntity<ExceptionResponse> getExceptionById(@PathVariable Long id) {
         return ResponseEntity.ok(exceptionService.getExceptionById(id));
     }
 
