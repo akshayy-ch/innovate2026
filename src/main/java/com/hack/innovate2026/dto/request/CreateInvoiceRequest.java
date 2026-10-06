@@ -2,7 +2,6 @@ package com.hack.innovate2026.dto.request;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -22,8 +21,5 @@ public record CreateInvoiceRequest(
 
         String category,
 
-        String employeeName,
-
-        @NotNull(message = "Invoice status is required")
-        com.hack.innovate2026.enums.InvoiceStatus status
+        String employeeName
 ) {}
