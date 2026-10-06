@@ -28,6 +28,7 @@ public class ExceptionService {
     private final ExceptionRepository exceptionRepository;
     private final ReviewRepository reviewRepository;
     private final InvoiceRepository invoiceRepository;
+    private final AuditLogService auditLogService;
     private final UserRepository userRepository;
 
     public List<ExceptionResponse> getAllExceptions() {
@@ -54,7 +55,15 @@ public class ExceptionService {
                 .decision(request.decision())
                 .build();
 
-        return toResponse(exceptionRepository.save(exception));
+        ExceptionRecord savedException = exceptionRepository.save(exception);
+        auditLogService.log(
+                invoice,
+                null,
+                "EXCEPTION_CREATED",
+                null,
+                "exceptionId=" + savedException.getId() + ",decision=" + savedException.getDecision()
+        );
+        return toResponse(savedException);
     }
 
     private ExceptionRecord getExceptionRecordById(Long id) {
@@ -113,6 +122,14 @@ public class ExceptionService {
                 .build();
 
         Review saved = reviewRepository.save(review);
+
+        auditLogService.log(
+                exception.getInvoice(),
+                reviewer,
+                "EXCEPTION_REVIEWED",
+                "decision=" + exception.getDecision(),
+                "reviewDecision=" + saved.getDecision()
+        );
 
         return new ReviewResponse(
                 saved.getId(),
