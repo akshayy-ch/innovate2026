@@ -18,7 +18,7 @@ public class UserService {
     public UserResponse createUser(CreateUserRequest request) {
 
         if (userRepository.existsByEmail(request.email())) {
-            throw new RuntimeException("Email already registered");
+            throw new com.hack.innovate2026.exception.ConflictException("Email already registered");
         }
 
         User user = User.builder()
