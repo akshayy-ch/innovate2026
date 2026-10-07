@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -24,6 +25,15 @@ public class InvoiceController {
     @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
     public ResponseEntity<List<InvoiceResponse>> getAllInvoices() {
         return ResponseEntity.ok(invoiceService.getAllInvoices());
+    }
+
+    @PostMapping("/batch")
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
+    public ResponseEntity<com.hack.innovate2026.dto.response.BatchInvoiceUploadResponse> uploadBatch(
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(invoiceService.uploadBatch(file, authentication));
     }
 
     @GetMapping("/{id}")
