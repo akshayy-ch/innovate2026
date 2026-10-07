@@ -41,6 +41,18 @@ public class ExceptionController {
         return ResponseEntity.ok(exceptionService.getExceptionById(id));
     }
 
+    @GetMapping("/invoice/{invoiceId}")
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
+    public ResponseEntity<List<ExceptionResponse>> getInvoiceExceptions(@PathVariable Long invoiceId) {
+        return ResponseEntity.ok(exceptionService.getExceptionsByInvoice(invoiceId));
+    }
+
+    @GetMapping("/{id}/reviews")
+    @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
+    public ResponseEntity<List<ReviewResponse>> getReviews(@PathVariable Long id) {
+        return ResponseEntity.ok(exceptionService.getReviews(id));
+    }
+
     @PostMapping("/{id}/reviews")
     @PreAuthorize("hasAnyRole('ANALYST','MANAGER','ADMIN')")
     public ResponseEntity<ReviewResponse> reviewException(
