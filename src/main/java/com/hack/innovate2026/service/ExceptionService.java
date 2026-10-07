@@ -40,6 +40,29 @@ public class ExceptionService {
         return toResponse(getExceptionRecordById(id));
     }
 
+    public List<ExceptionResponse> getExceptionsByInvoice(Long invoiceId) {
+        return exceptionRepository.findByInvoiceId(invoiceId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ReviewResponse> getReviews(Long exceptionId) {
+        getExceptionRecordById(exceptionId);
+        return reviewRepository.findByExceptionId(exceptionId)
+                .stream()
+                .map(review -> new ReviewResponse(
+                        review.getId(),
+                        exceptionId,
+                        review.getReviewer().getId(),
+                        review.getReviewer().getEmail(),
+                        review.getDecision(),
+                        review.getComments(),
+                        review.getReviewedAt()
+                ))
+                .toList();
+    }
+
     @Transactional
     public ExceptionResponse createException(CreateExceptionRequest request) {
         Invoice invoice = invoiceRepository.findById(request.invoiceId())
