@@ -58,6 +58,15 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "Forbidden", "Access Denied", List.of());
     }
 
+    @ExceptionHandler(com.hack.innovate2026.ml.MlServiceException.class)
+    public ResponseEntity<ApiErrorResponse> handleMlService(com.hack.innovate2026.ml.MlServiceException ex) {
+        HttpStatus status = HttpStatus.resolve(ex.getStatusCode());
+        if (status == null || status.is5xxServerError() && ex.getStatusCode() != 502) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+        return build(status, "ML Service Error", ex.getMessage(), List.of());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneric(Exception ex) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
