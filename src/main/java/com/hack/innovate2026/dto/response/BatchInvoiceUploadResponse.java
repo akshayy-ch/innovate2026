@@ -7,5 +7,6 @@ public record BatchInvoiceUploadResponse(
         int created,
         int skipped,
         List<String> skippedInvoiceIds,
+        List<String> errors,
         List<InvoiceResponse> invoices
 ) {}
