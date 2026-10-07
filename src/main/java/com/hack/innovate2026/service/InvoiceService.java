@@ -3,17 +3,24 @@ package com.hack.innovate2026.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hack.innovate2026.dto.request.CreateInvoiceRequest;
 import com.hack.innovate2026.dto.response.InvoiceResponse;
+import com.hack.innovate2026.entity.ExceptionRecord;
 import com.hack.innovate2026.entity.Invoice;
+import com.hack.innovate2026.entity.ModelPrediction;
 import com.hack.innovate2026.entity.User;
+import com.hack.innovate2026.enums.Decision;
 import com.hack.innovate2026.enums.InvoiceStatus;
+import com.hack.innovate2026.enums.Severity;
 import com.hack.innovate2026.ml.MlAnalysisRequest;
 import com.hack.innovate2026.ml.MlClient;
+import com.hack.innovate2026.repository.ExceptionRepository;
 import com.hack.innovate2026.repository.InvoiceRepository;
+import com.hack.innovate2026.repository.ModelPredictionRepository;
 import com.hack.innovate2026.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -25,6 +32,8 @@ public class InvoiceService {
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
     private final MlClient mlClient;
+    private final ExceptionRepository exceptionRepository;
+    private final ModelPredictionRepository modelPredictionRepository;
 
     public List<InvoiceResponse> getAllInvoices() {
         return invoiceRepository.findAll()
@@ -107,14 +116,7 @@ public class InvoiceService {
                 );
 
         JsonNode analysis = mlClient.analyze(mlRequest);
-
-        String status = analysis.path("status").asText("FLAGGED");
-
-        if ("FLAGGED".equalsIgnoreCase(status)) {
-            savedInvoice.setStatus(InvoiceStatus.HUMAN_REVIEW);
-        } else {
-            savedInvoice.setStatus(InvoiceStatus.AUTO_PASS);
-        }
+        persistAnalysis(savedInvoice, analysis);
 
         savedInvoice = invoiceRepository.save(savedInvoice);
 
@@ -123,10 +125,102 @@ public class InvoiceService {
                 uploader,
                 "ML_ANALYSIS_COMPLETED",
                 null,
-                "ml_status=" + status
+                "ml_status=" + analysis.path("status").asText("FLAGGED")
         );
 
         return toResponse(savedInvoice);
+    }
+
+    private void persistAnalysis(Invoice invoice, JsonNode analysis) {
+        String status = analysis.path("status").asText("FLAGGED");
+        boolean reviewRequired = analysis.path("review_required").asBoolean(false);
+
+        if ("FLAGGED".equalsIgnoreCase(status) || reviewRequired) {
+            invoice.setStatus(InvoiceStatus.HUMAN_REVIEW);
+        } else {
+            invoice.setStatus(InvoiceStatus.AUTO_PASS);
+        }
+
+        int riskScore = analysis.path("risk_score").asInt(0);
+        String severityText = analysis.path("severity").asText("MEDIUM");
+        Severity severity = parseSeverity(severityText);
+
+        JsonNode signals = analysis.path("signals");
+        if (signals.isArray() && !signals.isEmpty()) {
+            for (JsonNode signal : signals) {
+                String code = signal.path("code").asText("AP_EXCEPTION");
+                String reason = signal.path("reason").asText("Potential exception requires verification.");
+                String signalSeverity = signal.path("severity").asText(severityText);
+
+                exceptionRepository.save(
+                        ExceptionRecord.builder()
+                                .invoice(invoice)
+                                .exceptionType(code)
+                                .severity(parseSeverity(signalSeverity))
+                                .confidence(null)
+                                .riskScore(BigDecimal.valueOf(riskScore))
+                                .reason(reason)
+                                .matchedRecordId(null)
+                                .decision(toDecision(invoice.getStatus()))
+                                .build()
+                );
+            }
+        } else if (reviewRequired) {
+            exceptionRepository.save(
+                    ExceptionRecord.builder()
+                            .invoice(invoice)
+                            .exceptionType("AP_EXCEPTION")
+                            .severity(severity)
+                            .confidence(null)
+                            .riskScore(BigDecimal.valueOf(riskScore))
+                            .reason("Potential exception requires verification.")
+                            .decision(toDecision(invoice.getStatus()))
+                            .build()
+            );
+        }
+
+        boolean mlExecuted = analysis.path("cascade").path("ml_executed").asInt(0) > 0
+                || analysis.path("pipeline").path("ml_executed").asBoolean(false);
+
+        if (mlExecuted) {
+            JsonNode model = analysis.path("model_prediction");
+            if (!model.isMissingNode() && !model.isNull()) {
+                double score = model.path("score").asDouble(-1);
+                if (score >= 0) {
+                    modelPredictionRepository.save(
+                            ModelPrediction.builder()
+                                    .invoice(invoice)
+                                    .modelType(model.path("model_type").asText("AP_ML"))
+                                    .modelVersion(model.path("model_version").asText(null))
+                                    .score(BigDecimal.valueOf(score))
+                                    .processingTimeMs(
+                                            model.has("processing_time_ms")
+                                                    ? model.path("processing_time_ms").asLong()
+                                                    : null
+                                    )
+                                    .build()
+                    );
+                }
+            }
+        }
+    }
+
+    private Severity parseSeverity(String value) {
+        try {
+            return Severity.valueOf(value.toUpperCase());
+        } catch (Exception ignored) {
+            return Severity.MEDIUM;
+        }
+    }
+
+    private Decision toDecision(InvoiceStatus status) {
+        return switch (status) {
+            case AUTO_PASS -> Decision.AUTO_PASS;
+            case HUMAN_REVIEW -> Decision.HUMAN_REVIEW;
+            case HIGH_RISK -> Decision.HIGH_RISK;
+            case RESOLVED -> Decision.HOLD;
+            default -> Decision.HUMAN_REVIEW;
+        };
     }
 
     private InvoiceResponse toResponse(Invoice invoice) {
