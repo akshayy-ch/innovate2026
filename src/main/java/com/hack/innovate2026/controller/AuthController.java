@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.Authentication;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -14,6 +15,11 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+
+    @GetMapping("/me")
+    public ResponseEntity<com.hack.innovate2026.dto.response.UserResponse> me(Authentication authentication) {
+        return ResponseEntity.ok(authService.currentUser(authentication.getName()));
+    }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
