@@ -3,6 +3,7 @@ package com.hack.innovate2026.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.hack.innovate2026.dto.request.CreateInvoiceRequest;
 import com.hack.innovate2026.dto.response.InvoiceResponse;
+import com.hack.innovate2026.dto.response.BatchInvoiceUploadResponse;
 import com.hack.innovate2026.entity.ExceptionRecord;
 import com.hack.innovate2026.entity.Invoice;
 import com.hack.innovate2026.entity.ModelPrediction;
@@ -19,9 +20,13 @@ import com.hack.innovate2026.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @Service
@@ -40,6 +45,110 @@ public class InvoiceService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public BatchInvoiceUploadResponse uploadBatch(MultipartFile file, Authentication authentication) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("CSV file is required");
+        }
+        String filename = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase();
+        if (!filename.endsWith(".csv")) {
+            throw new IllegalArgumentException("Only CSV files are supported for batch invoice upload");
+        }
+
+        String csv;
+        try {
+            csv = new String(file.getBytes(), StandardCharsets.UTF_8);
+        } catch (Exception ex) {
+            throw new IllegalArgumentException("Unable to read uploaded CSV: " + ex.getMessage());
+        }
+
+        List<String> lines = csv.lines().filter(line -> !line.isBlank()).toList();
+        if (lines.size() < 2) {
+            throw new IllegalArgumentException("CSV must contain a header and at least one invoice row");
+        }
+
+        List<String> header = parseCsvLine(lines.get(0));
+        java.util.Map<String, Integer> columns = new java.util.HashMap<>();
+        for (int i = 0; i < header.size(); i++) {
+            columns.put(header.get(i).trim().toLowerCase(), i);
+        }
+        for (String required : List.of("id", "supplier", "amount", "date", "description", "department")) {
+            if (!columns.containsKey(required)) {
+                throw new IllegalArgumentException("CSV is missing required column: " + required);
+            }
+        }
+
+        List<String> skipped = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        List<InvoiceResponse> created = new ArrayList<>();
+
+        for (int row = 1; row < lines.size(); row++) {
+            List<String> values = parseCsvLine(lines.get(row));
+            String invoiceId = value(values, columns, "id");
+            if (invoiceId.isBlank()) {
+                errors.add("Row " + (row + 1) + ": missing id");
+                continue;
+            }
+            if (invoiceRepository.existsByInvoiceId(invoiceId)) {
+                skipped.add(invoiceId);
+                continue;
+            }
+
+            try {
+                CreateInvoiceRequest request = new CreateInvoiceRequest(
+                        invoiceId,
+                        value(values, columns, "supplier"),
+                        new BigDecimal(value(values, columns, "amount")),
+                        java.time.LocalDate.parse(value(values, columns, "date")),
+                        value(values, columns, "description"),
+                        value(values, columns, "department"),
+                        "Batch Upload"
+                );
+                created.add(createInvoice(request, authentication));
+            } catch (Exception ex) {
+                errors.add("Row " + (row + 1) + " (" + invoiceId + "): " + ex.getMessage());
+            }
+        }
+
+        return new BatchInvoiceUploadResponse(
+                lines.size() - 1,
+                created.size(),
+                skipped.size(),
+                skipped,
+                errors,
+                created
+        );
+    }
+
+    private String value(List<String> values, java.util.Map<String, Integer> columns, String name) {
+        Integer index = columns.get(name);
+        if (index == null || index >= values.size()) return "";
+        return values.get(index).trim();
+    }
+
+    private List<String> parseCsvLine(String line) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean quoted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+            if (ch == '"') {
+                if (quoted && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    quoted = !quoted;
+                }
+            } else if (ch == ',' && !quoted) {
+                result.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(ch);
+            }
+        }
+        result.add(current.toString());
+        return result;
     }
 
     public InvoiceResponse getInvoiceById(Long id) {
